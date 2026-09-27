@@ -329,6 +329,9 @@
                     <h4 class="font-black text-slate-800 text-base">Semua Transaksi</h4>
                     <button onclick="loadAdminRekap()" class="text-blue-600 text-xs font-black uppercase">Refresh</button>
                 </div>
+                <select id="adminClassFilter" onchange="filterAdminTable()" class="standard-input shadow-inner" style="padding-left: 1rem;">
+                    <option value="">Semua Kelas</option>
+                </select>
                 <input type="text" id="adminSearch" onkeyup="filterAdminTable()" placeholder="Cari Nama atau Username..." class="standard-input shadow-inner" style="padding-left: 1rem;">
             </div>
             <div id="adminTableBody" class="divide-y divide-slate-100 max-h-[400px] overflow-y-auto"></div>
@@ -541,12 +544,14 @@
                 const result = await apiRequest({ action: 'getAllRekap' });
                 if (result.success) {
                     adminDataCache = result.data;
+                    populateClassFilter(adminDataCache);
                     document.getElementById('admTotalSimpan').innerText = "Rp " + result.totalSimpan.toLocaleString('id-ID');
                     document.getElementById('admTotalPakai').innerText = "Rp " + result.totalPakai.toLocaleString('id-ID');
                     
                     document.getElementById('admTotalSaldoValue').innerText = result.totalSaldo.toLocaleString('id-ID');
                     
                     renderAdminTable(adminDataCache);
+                    filterAdminTable();
                 }
             } catch (e) {
                 showToast(e.message || 'Gagal memuat rekap admin.');
@@ -562,7 +567,7 @@
                     <div class="p-5 flex justify-between items-center hover:bg-slate-50">
                         <div class="flex flex-col">
                             <span class="font-black text-slate-900 text-sm">${escapeHtml(item.nama)}</span>
-                            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Rek: ${escapeHtml(item.norek)} | NIS: ${escapeHtml(item.nis)} | ${escapeHtml(item.tanggal)}</span>
+                            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Rek: ${escapeHtml(item.norek)} | NIS: ${escapeHtml(item.nis)} | Kelas: ${escapeHtml(item.kelas)} | ${escapeHtml(item.tanggal)}</span>
                             <span class="text-[11px] text-slate-500 font-medium mt-1 italic">${escapeHtml(item.keterangan) || '-'}</span>
                         </div>
                         <div class="text-right">
@@ -579,12 +584,36 @@
 
         function filterAdminTable() {
             const q = document.getElementById('adminSearch').value.toLowerCase();
+            const selectedClass = document.getElementById('adminClassFilter').value;
             const filtered = adminDataCache.filter(i =>
-                i.nama.toLowerCase().includes(q) ||
+                (!selectedClass || i.kelas === selectedClass) &&
+                (i.nama.toLowerCase().includes(q) ||
                 i.nis.toString().includes(q) ||
-                i.norek.toString().toLowerCase().includes(q)
+                i.norek.toString().toLowerCase().includes(q))
             );
+            updateAdminTotals(filtered);
             renderAdminTable(filtered);
+        }
+
+        function populateClassFilter(data) {
+            const select = document.getElementById('adminClassFilter');
+            const current = select.value;
+            select.innerHTML = '<option value="">Semua Kelas</option>';
+            [...new Set(data.map(item => item.kelas).filter(Boolean))].sort().forEach(kelas => {
+                const option = document.createElement('option');
+                option.value = kelas;
+                option.textContent = kelas;
+                select.appendChild(option);
+            });
+            select.value = current;
+        }
+
+        function updateAdminTotals(data) {
+            const totalSimpan = data.filter(item => item.jenis === 'SIMPAN').reduce((sum, item) => sum + item.jumlah, 0);
+            const totalPakai = data.filter(item => item.jenis === 'PAKAI').reduce((sum, item) => sum + item.jumlah, 0);
+            document.getElementById('admTotalSimpan').innerText = "Rp " + totalSimpan.toLocaleString('id-ID');
+            document.getElementById('admTotalPakai').innerText = "Rp " + totalPakai.toLocaleString('id-ID');
+            document.getElementById('admTotalSaldoValue').innerText = (totalSimpan - totalPakai).toLocaleString('id-ID');
         }
 
         async function saveTransaksi() {
